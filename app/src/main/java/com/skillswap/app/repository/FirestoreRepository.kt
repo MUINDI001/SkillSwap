@@ -64,10 +64,14 @@ class FirestoreRepository {
     }
 
     suspend fun sendSwapRequest(swap: Swap) {
-        swapsCollection.document(swap.id).set(swap).await()
+        val swapToSave = swap.copy(
+            participantIds = listOf(swap.fromUser.id, swap.toUser.id).filter { it.isNotBlank() }.distinct()
+        )
+        swapsCollection.document(swapToSave.id).set(swapToSave).await()
     }
 
     fun getSwapsForUser(userId: String): Flow<List<Swap>> {
+        if (userId.isBlank()) return flowOf(emptyList())
         return swapsCollection
             .whereArrayContains("participantIds", userId)
             .snapshots()
@@ -126,7 +130,7 @@ class FirestoreRepository {
 
         val conversationData = mapOf(
             "conversationId" to conversationId,
-            "participantIds" to listOf(senderId, receiverId).distinct(),
+            "participantIds" to listOf(senderId, receiverId).filter { it.isNotBlank() }.distinct(),
             "lastMessage" to text.trim(),
             "lastMessageAt" to System.currentTimeMillis()
         )
