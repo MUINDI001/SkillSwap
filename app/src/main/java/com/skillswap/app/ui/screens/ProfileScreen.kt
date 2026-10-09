@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
@@ -34,8 +35,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.skillswap.app.model.Swap
 import com.skillswap.app.model.User
 import com.skillswap.app.repository.FakeRepository
+import com.skillswap.app.ui.components.ActiveSwapDialog
 import com.skillswap.app.ui.components.ErrorState
 import com.skillswap.app.ui.components.LoadingState
 import com.skillswap.app.viewmodel.ProfileViewModel
@@ -58,6 +61,7 @@ fun ProfileScreen(
     var showRequestDialog by remember { mutableStateOf(false) }
     var isRequesting by remember { mutableStateOf(false) }
     var showSuccessOverlay by remember { mutableStateOf(false) }
+    var directChatPartner by remember { mutableStateOf<User?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(userId) {
@@ -107,7 +111,8 @@ fun ProfileScreen(
                         isOwnProfile = isOwnProfile,
                         onEditProfileClick = { onEditProfileClick(user.id) },
                         onSignOutClick = onSignOutClick,
-                        onRequestSwapClick = { showRequestDialog = true }
+                        onRequestSwapClick = { showRequestDialog = true },
+                        onOpenChatClick = { directChatPartner = user }
                     )
 
                     // Request Swap Confirmation Modal
@@ -129,6 +134,23 @@ fun ProfileScreen(
                                     showSuccessOverlay = false
                                 }
                             }
+                        )
+                    }
+
+                    // Direct Chat Modal
+                    directChatPartner?.let { partner ->
+                        val dummySwap = Swap(
+                            id = "chat_${currentUser.id}_${partner.id}",
+                            fromUser = currentUser,
+                            toUser = partner,
+                            offeredSkill = currentUser.skillsOffered.firstOrNull() ?: "Skill Exchange",
+                            requestedSkill = partner.skillsOffered.firstOrNull() ?: "Mentorship",
+                            status = "accepted"
+                        )
+                        ActiveSwapDialog(
+                            swap = dummySwap,
+                            currentUser = currentUser,
+                            onDismiss = { directChatPartner = null }
                         )
                     }
                 }
@@ -186,7 +208,8 @@ fun ProfileContent(
     isOwnProfile: Boolean,
     onEditProfileClick: () -> Unit,
     onSignOutClick: () -> Unit,
-    onRequestSwapClick: () -> Unit
+    onRequestSwapClick: () -> Unit,
+    onOpenChatClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -373,14 +396,27 @@ fun ProfileContent(
                 }
             }
         } else {
-            Button(
-                onClick = onRequestSwapClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.medium
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Request Skill Swap", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(
+                    onClick = onOpenChatClick,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Forum, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Message")
+                }
+
+                Button(
+                    onClick = onRequestSwapClick,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text("Request Swap", style = MaterialTheme.typography.titleSmall)
+                }
             }
         }
 

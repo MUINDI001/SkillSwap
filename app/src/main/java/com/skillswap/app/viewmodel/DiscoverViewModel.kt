@@ -2,22 +2,30 @@ package com.skillswap.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.skillswap.app.model.User
 import com.skillswap.app.repository.FakeRepository
+import com.skillswap.app.repository.FirestoreRepository
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+data class UserSearchResult(
+    val user: User,
+    val matchReason: String = "",
+    val matchRank: Int = 3
+)
 
 sealed class DiscoverUiState {
     object Idle : DiscoverUiState()
     object Loading : DiscoverUiState()
-    data class Success(val users: List<User>) : DiscoverUiState()
+    data class Success(val searchResults: List<UserSearchResult>) : DiscoverUiState()
     object Empty : DiscoverUiState()
 }
 
 class DiscoverViewModel : ViewModel() {
 
+    private val repository = FirestoreRepository()
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -34,31 +42,76 @@ class DiscoverViewModel : ViewModel() {
     @OptIn(FlowPreview::class)
     private fun observeSearch() {
         viewModelScope.launch {
-            combine(_searchQuery.debounce(200), _selectedNeighborhood) { query, neighborhood ->
+            combine(_searchQuery.debounce(150), _selectedNeighborhood) { query, neighborhood ->
                 Pair(query, neighborhood)
             }
             .onEach { (query, neighborhood) ->
                 _uiState.value = DiscoverUiState.Loading
-                delay(300)
-                
-                val allUsers = FakeRepository.getUsers()
-                val filtered = allUsers.filter { user ->
-                    val matchesQuery = query.isEmpty() ||
-                            user.name.contains(query, ignoreCase = true) ||
-                            user.location.contains(query, ignoreCase = true) ||
-                            user.skillsOffered.any { skill -> skill.contains(query, ignoreCase = true) } ||
-                            user.skillsWanted.any { skill -> skill.contains(query, ignoreCase = true) }
+
+                val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: FakeRepository.getCurrentUser().id
+
+                var firestoreUsers = try {
+                    repository.getAllUsers()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+
+                val allUsers = (firestoreUsers + FakeRepository.getUsers()).distinctBy { it.id }
+                val cleanQuery = query.trim().lowercase()
+
+                val results = allUsers.mapNotNull { user ->
+                    if (user.id == currentUid || user.id.isBlank()) return@mapNotNull null
 
                     val matchesNeighborhood = neighborhood == "All" ||
                             user.location.contains(neighborhood, ignoreCase = true)
 
-                    matchesQuery && matchesNeighborhood
-                }
+                    if (!matchesNeighborhood) return@mapNotNull null
 
-                if (filtered.isEmpty()) {
+                    if (cleanQuery.isEmpty()) {
+                        return@mapNotNull UserSearchResult(user = user, matchReason = "", matchRank = 3)
+                    }
+
+                    // Check Skills Offered
+                    val matchedOffered = user.skillsOffered.firstOrNull { it.lowercase().contains(cleanQuery) }
+                    if (matchedOffered != null) {
+                        return@mapNotNull UserSearchResult(
+                            user = user,
+                            matchReason = "Offers $matchedOffered",
+                            matchRank = 1
+                        )
+                    }
+
+                    // Check Skills Wanted
+                    val matchedWanted = user.skillsWanted.firstOrNull { it.lowercase().contains(cleanQuery) }
+                    if (matchedWanted != null) {
+                        return@mapNotNull UserSearchResult(
+                            user = user,
+                            matchReason = "Wants to Learn $matchedWanted",
+                            matchRank = 2
+                        )
+                    }
+
+                    // Check Name, Title, Bio, Location
+                    val matchesGeneral = user.name.lowercase().contains(cleanQuery) ||
+                            user.title.lowercase().contains(cleanQuery) ||
+                            user.bio.lowercase().contains(cleanQuery) ||
+                            user.location.lowercase().contains(cleanQuery)
+
+                    if (matchesGeneral) {
+                        return@mapNotNull UserSearchResult(
+                            user = user,
+                            matchReason = "Member Match",
+                            matchRank = 3
+                        )
+                    }
+
+                    null
+                }.sortedBy { it.matchRank }
+
+                if (results.isEmpty()) {
                     _uiState.value = DiscoverUiState.Empty
                 } else {
-                    _uiState.value = DiscoverUiState.Success(filtered)
+                    _uiState.value = DiscoverUiState.Success(results)
                 }
             }
             .launchIn(this)

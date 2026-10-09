@@ -26,6 +26,7 @@ import com.skillswap.app.ui.components.LoadingState
 import com.skillswap.app.ui.components.UserListItem
 import com.skillswap.app.viewmodel.DiscoverUiState
 import com.skillswap.app.viewmodel.DiscoverViewModel
+import com.skillswap.app.viewmodel.UserSearchResult
 
 @Composable
 fun DiscoverScreen(
@@ -162,7 +163,7 @@ fun DiscoverScreen(
                         }
                         is DiscoverUiState.Success -> {
                             DiscoverUserList(
-                                users = state.users,
+                                searchResults = state.searchResults,
                                 onUserClick = { user ->
                                     navController.navigate(Screen.Profile.createRoute(user.id))
                                 }
@@ -204,17 +205,18 @@ fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-fun DiscoverUserList(users: List<com.skillswap.app.model.User>, onUserClick: (com.skillswap.app.model.User) -> Unit) {
+fun DiscoverUserList(searchResults: List<UserSearchResult>, onUserClick: (com.skillswap.app.model.User) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(users, key = { it.id }) { user ->
+        items(searchResults, key = { it.user.id }) { result ->
             UserListItem(
-                user = user,
-                onSwapClick = { onUserClick(user) },
-                onCardClick = { onUserClick(user) }
+                user = result.user,
+                onSwapClick = { onUserClick(result.user) },
+                onCardClick = { onUserClick(result.user) },
+                matchTag = result.matchReason.ifBlank { null }
             )
         }
     }

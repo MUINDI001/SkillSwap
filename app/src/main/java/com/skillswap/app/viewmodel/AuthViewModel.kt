@@ -35,6 +35,30 @@ class AuthViewModel : ViewModel() {
     private fun checkCurrentUser() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
+            viewModelScope.launch {
+                try {
+                    val existingUser = repository.getUser(currentUser.uid)
+                    if (existingUser != null) {
+                        FakeRepository.registerUser(existingUser)
+                    } else {
+                        val newUser = User(
+                            id = currentUser.uid,
+                            name = currentUser.displayName?.takeIf { it.isNotBlank() } ?: currentUser.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Accra Member",
+                            email = currentUser.email ?: "",
+                            location = "East Legon, Accra",
+                            skillsOffered = listOf("Skill Exchange"),
+                            skillsWanted = listOf("Mentorship"),
+                            rating = 5.0,
+                            ratingCount = 1,
+                            bio = "Active SkillSwap Accra member."
+                        )
+                        FakeRepository.registerUser(newUser)
+                        try { repository.saveUser(newUser) } catch (e: Exception) {}
+                    }
+                } catch (e: Exception) {
+                    // Fallback to local
+                }
+            }
             _authState.value = AuthState.Authenticated(currentUser)
         } else {
             _authState.value = AuthState.Unauthenticated
@@ -53,7 +77,31 @@ class AuthViewModel : ViewModel() {
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         val firebaseUser = auth.currentUser!!
-                        _authState.value = AuthState.Authenticated(firebaseUser)
+                        viewModelScope.launch {
+                            try {
+                                val firestoreUser = repository.getUser(firebaseUser.uid)
+                                if (firestoreUser != null) {
+                                    FakeRepository.registerUser(firestoreUser)
+                                } else {
+                                    val newUser = User(
+                                        id = firebaseUser.uid,
+                                        name = firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: firebaseUser.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "Accra Member",
+                                        email = firebaseUser.email ?: email,
+                                        location = "East Legon, Accra",
+                                        skillsOffered = listOf("Skill Exchange"),
+                                        skillsWanted = listOf("Mentorship"),
+                                        rating = 5.0,
+                                        ratingCount = 1,
+                                        bio = "Active SkillSwap Accra member."
+                                    )
+                                    FakeRepository.registerUser(newUser)
+                                    try { repository.saveUser(newUser) } catch (e: Exception) {}
+                                }
+                            } catch (e: Exception) {
+                                // Ignore offline sync issues
+                            }
+                            _authState.value = AuthState.Authenticated(firebaseUser)
+                        }
                     } else {
                         _authState.value = AuthState.Error(task.exception?.message ?: "Login failed")
                     }
@@ -67,18 +115,23 @@ class AuthViewModel : ViewModel() {
         if (firebaseUser != null) {
             _authState.value = AuthState.Authenticated(firebaseUser)
         } else {
-            // Log in anonymously to get real Firebase auth session
             viewModelScope.launch {
                 _authState.value = AuthState.Loading
                 auth.signInAnonymously()
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
-                            _authState.value = AuthState.Authenticated(auth.currentUser!!)
+                            val anonUser = auth.currentUser!!
+                            val demoUser = FakeRepository.getCurrentUser()
+                            val syncedDemoUser = demoUser.copy(id = anonUser.uid)
+                            FakeRepository.registerUser(syncedDemoUser)
+                            viewModelScope.launch {
+                                try { repository.saveUser(syncedDemoUser) } catch (e: Exception) {}
+                            }
+                            _authState.value = AuthState.Authenticated(anonUser)
                         } else {
-                            // Fallback if offline
                             val mockUser = FakeRepository.getCurrentUser()
                             _authState.value = AuthState.Authenticated(
-                                auth.currentUser ?: auth.currentUser ?: return@addOnCompleteListener
+                                auth.currentUser ?: return@addOnCompleteListener
                             )
                         }
                     }
@@ -126,13 +179,12 @@ class AuthViewModel : ViewModel() {
                             bio = "New SkillSwap member in Accra."
                         )
 
-                        // Register in repositories
                         FakeRepository.registerUser(newUser)
                         viewModelScope.launch {
                             try {
                                 repository.saveUser(newUser)
                             } catch (e: Exception) {
-                                // Ignore firestore offline error
+                                // Ignore offline error
                             }
                         }
 

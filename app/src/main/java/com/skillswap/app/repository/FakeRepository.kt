@@ -1,5 +1,6 @@
 package com.skillswap.app.repository
 
+import com.google.firebase.auth.FirebaseAuth
 import com.skillswap.app.model.Swap
 import com.skillswap.app.model.User
 import kotlinx.coroutines.delay
@@ -176,6 +177,30 @@ object FakeRepository {
     fun getUsers(): List<User> = _usersList
 
     fun getCurrentUser(): User {
+        val authUid = FirebaseAuth.getInstance().currentUser?.uid
+        if (!authUid.isNullOrBlank()) {
+            val found = _usersList.find { it.id == authUid }
+            if (found != null) return found
+            val firebaseUser = FirebaseAuth.getInstance().currentUser
+            val fallbackName = firebaseUser?.displayName?.takeIf { it.isNotBlank() }
+                ?: firebaseUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+                ?: "Accra Member"
+            val fallbackUser = User(
+                id = authUid,
+                name = fallbackName,
+                email = firebaseUser?.email ?: "",
+                location = "East Legon, Accra",
+                skillsOffered = listOf("Skill Exchange"),
+                skillsWanted = listOf("Mentorship"),
+                rating = 5.0,
+                ratingCount = 1,
+                bio = "Active SkillSwap Accra member."
+            )
+            if (_usersList.none { it.id == authUid }) {
+                _usersList = _usersList + fallbackUser
+            }
+            return fallbackUser
+        }
         return _usersList.find { it.id == activeUserId } ?: _usersList.first()
     }
 
@@ -184,11 +209,16 @@ object FakeRepository {
     }
 
     fun updateUserProfile(user: User) {
+        if (user.id.isBlank()) return
         _usersList = _usersList.map { if (it.id == user.id) user else it }
+        if (_usersList.none { it.id == user.id }) {
+            _usersList = _usersList + user
+        }
     }
 
     fun registerUser(user: User) {
-        if (_usersList.none { it.id == user.id || it.email == user.email }) {
+        if (user.id.isBlank()) return
+        if (_usersList.none { it.id == user.id }) {
             _usersList = _usersList + user
         }
         activeUserId = user.id

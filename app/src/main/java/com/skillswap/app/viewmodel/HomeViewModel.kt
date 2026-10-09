@@ -2,9 +2,10 @@ package com.skillswap.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.skillswap.app.model.User
 import com.skillswap.app.repository.FakeRepository
-import kotlinx.coroutines.delay
+import com.skillswap.app.repository.FirestoreRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,7 @@ sealed class HomeUiState {
 
 class HomeViewModel : ViewModel() {
 
+    private val repository = FirestoreRepository()
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
@@ -29,12 +31,30 @@ class HomeViewModel : ViewModel() {
     fun refreshUsers() {
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
-            delay(1500) // Simulate network delay
-            val users = FakeRepository.getUsers().filter { it.id != FakeRepository.getCurrentUser().id }
-            if (users.isEmpty()) {
+            
+            val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: FakeRepository.getCurrentUser().id
+            
+            var allUsers = try {
+                repository.getAllUsers()
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+            if (allUsers.isEmpty()) {
+                allUsers = FakeRepository.getUsers()
+            } else {
+                // Combine with local demo users ensuring no duplicates
+                val demoUsers = FakeRepository.getUsers()
+                val merged = (allUsers + demoUsers).distinctBy { it.id }
+                allUsers = merged
+            }
+
+            val filtered = allUsers.filter { it.id != currentUid && it.id.isNotBlank() }
+
+            if (filtered.isEmpty()) {
                 _uiState.value = HomeUiState.Empty
             } else {
-                _uiState.value = HomeUiState.Success(users)
+                _uiState.value = HomeUiState.Success(filtered)
             }
         }
     }

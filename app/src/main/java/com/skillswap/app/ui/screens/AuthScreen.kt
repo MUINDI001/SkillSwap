@@ -214,44 +214,6 @@ fun LoginForm(
                 Text("Log In", style = MaterialTheme.typography.titleMedium)
             }
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            "QUICK DEMO ACCOUNTS (ACCRA)",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedButton(
-            onClick = {
-                authViewModel.loginWithDemoUser("1") // Kojo Mensah
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium
-        ) {
-            Text("Log In as Kojo Mensah (East Legon)")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = {
-                authViewModel.loginWithDemoUser("2") // Abena Osei
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium
-        ) {
-            Text("Log In as Abena Osei (Osu)")
-        }
     }
 }
 

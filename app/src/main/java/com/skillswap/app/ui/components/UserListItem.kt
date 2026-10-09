@@ -25,7 +25,8 @@ import com.skillswap.app.model.User
 fun UserListItem(
     user: User,
     onSwapClick: () -> Unit,
-    onCardClick: () -> Unit
+    onCardClick: () -> Unit,
+    matchTag: String? = null
 ) {
     Card(
         modifier = Modifier
@@ -124,6 +125,22 @@ fun UserListItem(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                if (!matchTag.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = if (matchTag.startsWith("Offers")) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (matchTag.startsWith("Offers")) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Text(
+                            text = matchTag,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
