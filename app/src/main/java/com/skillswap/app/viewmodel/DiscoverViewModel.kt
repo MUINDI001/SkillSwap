@@ -50,16 +50,21 @@ class DiscoverViewModel : ViewModel() {
 
                 val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: FakeRepository.getCurrentUser().id
 
-                var firestoreUsers = try {
+                val firestoreUsers = try {
                     repository.getAllUsers()
                 } catch (e: Exception) {
                     emptyList()
                 }
 
-                val allUsers = (firestoreUsers + FakeRepository.getUsers()).distinctBy { it.id }
+                val localUsers = FakeRepository.getUsers()
+                val mergedUsers = (firestoreUsers + localUsers).distinctBy { it.id }
+
+                // Prioritize real signed-up users at the top of Discover
+                val prioritizedUsers = mergedUsers.sortedByDescending { if (it.id.length > 10) 2 else 1 }
+
                 val cleanQuery = query.trim().lowercase()
 
-                val results = allUsers.mapNotNull { user ->
+                val results = prioritizedUsers.mapNotNull { user ->
                     if (user.id == currentUid || user.id.isBlank()) return@mapNotNull null
 
                     val matchesNeighborhood = neighborhood == "All" ||
@@ -68,7 +73,12 @@ class DiscoverViewModel : ViewModel() {
                     if (!matchesNeighborhood) return@mapNotNull null
 
                     if (cleanQuery.isEmpty()) {
-                        return@mapNotNull UserSearchResult(user = user, matchReason = "", matchRank = 3)
+                        val isRealUser = user.id.length > 10
+                        return@mapNotNull UserSearchResult(
+                            user = user,
+                            matchReason = if (isRealUser) "New Member" else "",
+                            matchRank = if (isRealUser) 1 else 3
+                        )
                     }
 
                     // Check Skills Offered

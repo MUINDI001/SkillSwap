@@ -34,27 +34,26 @@ class HomeViewModel : ViewModel() {
             
             val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: FakeRepository.getCurrentUser().id
             
-            var allUsers = try {
+            val firestoreUsers = try {
                 repository.getAllUsers()
             } catch (e: Exception) {
                 emptyList()
             }
 
-            if (allUsers.isEmpty()) {
-                allUsers = FakeRepository.getUsers()
-            } else {
-                // Combine with local demo users ensuring no duplicates
-                val demoUsers = FakeRepository.getUsers()
-                val merged = (allUsers + demoUsers).distinctBy { it.id }
-                allUsers = merged
+            val localUsers = FakeRepository.getUsers()
+            val mergedUsers = (firestoreUsers + localUsers).distinctBy { it.id }
+
+            val availableUsers = mergedUsers.filter { it.id != currentUid && it.id.isNotBlank() }
+
+            // Prioritize real signed-up users (28-char UIDs) at the top of Recommended Experts!
+            val sortedUsers = availableUsers.sortedByDescending { user ->
+                if (user.id.length > 10) 2 else 1
             }
 
-            val filtered = allUsers.filter { it.id != currentUid && it.id.isNotBlank() }
-
-            if (filtered.isEmpty()) {
+            if (sortedUsers.isEmpty()) {
                 _uiState.value = HomeUiState.Empty
             } else {
-                _uiState.value = HomeUiState.Success(filtered)
+                _uiState.value = HomeUiState.Success(sortedUsers)
             }
         }
     }
